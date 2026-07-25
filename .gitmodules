@@ -1,0 +1,3 @@
+[submodule "upstream/pywidevine"]
+	path = upstream/pywidevine
+	url = https://github.com/devine-dl/pywidevine.git
