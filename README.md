@@ -91,7 +91,7 @@ The repository contains compatibility code and a bundled version of
 `pywidevine`.
 
 No changes should be made to `widevine.py` or `pywidevine_bundled.py` 
-directly as these files are generate automatically and changes will be 
+directly as these files are generated automatically and changes will be 
 overwritten.
 
 Instead, make changes elsewhere and run the build script to generate the 
