@@ -35,7 +35,7 @@ The plugin also requires a Widevine device.
 The device can either be specified explicitly with `--widevine-device` or
 placed in Streamlink's default configuration directory.
 
-```console
+```sh
 streamlink \
     --plugin-dir /path/to/streamlink-plugin-widevine \
     --widevine-device /path/to/device.wvd \
@@ -101,7 +101,7 @@ bundled implementation and the Streamlink plugin:
 
 The generated `widevine.py` can then be tested with Streamlink:
 
-```console
+```sh
 streamlink \
     --plugin-dir . \
     --loglevel debug \
