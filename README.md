@@ -54,13 +54,17 @@ Widevine license server URL.
 
 This parameter is required.
 
-`--widevine-license-server "https://license.example.com/..."`
+```sh
+--widevine-license-server "https://license.example.com/..."
+```
 
 ### `device`
 
 Path to the Widevine device (`.wvd`) file.
 
-`--widevine-device /path/to/device.wvd`
+```sh
+--widevine-device /path/to/device.wvd
+```
 
 If this option is not specified, the plugin searches for a device in the
 following locations:
@@ -77,11 +81,15 @@ Multiple PSSH strings can be supplied as a comma-separated list.
 If omitted, the plugin will attempt to extract Widevine PSSH data automatically
 from the media manifest and, where applicable, its initialisation segments.
 
-`--widevine-pssh "BASE64_PSSH"`
+```sh
+--widevine-pssh "BASE64_PSSH"
+```
 
 Multiple PSSH values:
 
-`--widevine-pssh "BASE64_PSSH_1,BASE64_PSSH_2"`
+```sh
+--widevine-pssh "BASE64_PSSH_1,BASE64_PSSH_2"
+```
 
 This can be useful for content which uses multiple encryption keys.
 
