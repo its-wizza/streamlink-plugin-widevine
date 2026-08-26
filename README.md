@@ -91,8 +91,6 @@ Multiple PSSH values:
 --widevine-pssh "BASE64_PSSH_1,BASE64_PSSH_2"
 ```
 
-This can be useful for content which uses multiple encryption keys.
-
 ## Development
 
 The repository contains compatibility code and a bundled version of
