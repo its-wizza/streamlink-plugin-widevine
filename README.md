@@ -1,7 +1,7 @@
 # streamlink-plugin-widevine
 
-A Streamlink plugin for playing DRM-protected MPEG-DASH and HLS streams using 
-Widevine.
+A Streamlink plugin for playing Widevine DRM-encrypted MPEG-DASH and HLS 
+streams.
 
 The plugin resolves Widevine PSSH data from the media manifest, obtains the
 required content keys from a Widevine license server, and passes those keys to
