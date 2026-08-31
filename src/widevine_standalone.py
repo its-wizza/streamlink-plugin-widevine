@@ -345,6 +345,17 @@ def _extract_widevine_psshs_from_init_segment(data: bytes) -> list[str]:
     required=True,
     help="Widevine license server URL.",
 )
+@pluginargument(
+    "license-header",
+    metavar="KEY=VALUE",
+    type="keyvalue",
+    action="append",
+    help="""
+        A header to add to the license server HTTP request.
+
+        Can be repeated to add multiple headers.
+    """,
+)
 class Widevine(Plugin):
     def _get_device_path(self) -> Path:
         if device := self.get_option("device"):
@@ -371,6 +382,9 @@ class Widevine(Plugin):
         params = parse_params(data.get("params"))
         manifest_type = data["type"].lower()
 
+        license_server = self.get_option("license-server")
+        license_header = self.get_option("license-header")
+
         try:
             device = Device.load(self._get_device_path())
         except Exception as err:
@@ -380,11 +394,6 @@ class Widevine(Plugin):
             cdm = Cdm.from_device(device)
         except Exception as err:
             raise PluginError(f"Failed to initialize Widevine CDM: {err}") from err
-
-        license_server = self.get_option("license-server")
-
-        log.debug("Stream URL: %s", url)
-        log.debug("License server: %s", license_server)
 
         psshs = self.get_option("pssh")
 
@@ -441,6 +450,7 @@ class Widevine(Plugin):
                     response = self.session.http.post(
                         license_server,
                         data=challenge,
+                        headers=dict(license_header or [])
                     )
                 except PluginError:
                     raise
