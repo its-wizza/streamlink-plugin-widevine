@@ -332,13 +332,19 @@ def _extract_widevine_psshs_from_init_segment(data: bytes) -> list[str]:
 )
 @pluginargument(
     "pssh",
+    metavar="PSSH[,PSSH2,...]",
     type="comma_list",
-    help="Widevine PSSH data. Multiple PSSH strings can be supplied, comma-separated."
-    " If omitted, the plugin will attempt to extract PSSH data automatically.",
+    help="""
+        Widevine PSSH data. Multiple PSSH strings can be supplied, comma-separated.
+        If omitted, the plugin will attempt to extract PSSH data automatically.
+    """,
 )
 @pluginargument(
     "device",
-    help="Path to the Widevine device (.wvd) file.",
+    metavar="PATH",
+    help="""
+        Path to the Widevine device (.wvd) file.
+    """,
 )
 @pluginargument(
     "license-url",
