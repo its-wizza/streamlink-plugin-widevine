@@ -459,7 +459,7 @@ class Widevine(Plugin):
                     response = self.session.http.post(
                         license_url,
                         data=challenge,
-                        headers=dict(license_header or [])
+                        headers=dict(license_header or []),
                     )
                 except PluginError:
                     raise
