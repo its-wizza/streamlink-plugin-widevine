@@ -362,18 +362,38 @@ def _extract_widevine_psshs_from_init_segment(data: bytes) -> list[str]:
 )
 @pluginargument(
     "pssh",
+    metavar="PSSH[,PSSH2,...]",
     type="comma_list",
-    help="Widevine PSSH data. Multiple PSSH strings can be supplied, comma-separated."
-    " If omitted, the plugin will attempt to extract PSSH data automatically.",
+    help="""
+        Widevine PSSH data. Multiple PSSH strings can be supplied, comma-separated.
+        If omitted, the plugin will attempt to extract PSSH data automatically.
+    """,
 )
 @pluginargument(
     "device",
-    help="Path to the Widevine device (.wvd) file.",
+    metavar="PATH",
+    help="""
+        Path to the Widevine device (.wvd) file.
+    """,
 )
 @pluginargument(
-    "license-server",
+    "license-url",
     required=True,
-    help="Widevine license server URL.",
+    metavar="URL",
+    help="""
+        Widevine license server URL.
+    """,
+)
+@pluginargument(
+    "license-header",
+    metavar="KEY=VALUE",
+    type="keyvalue",
+    action="append",
+    help="""
+        A header to add to the license server HTTP request.
+
+        Can be repeated to add multiple headers.
+    """,
 )
 class Widevine(Plugin):
     def _get_device_path(self) -> Path:
@@ -401,6 +421,9 @@ class Widevine(Plugin):
         params = parse_params(data.get("params"))
         manifest_type = data["type"].lower()
 
+        license_url = self.get_option("license-url")
+        license_header = self.get_option("license-header")
+
         try:
             device = Device.load(self._get_device_path())
         except Exception as err:
@@ -410,11 +433,6 @@ class Widevine(Plugin):
             cdm = Cdm.from_device(device)
         except Exception as err:
             raise PluginError(f"Failed to initialize Widevine CDM: {err}") from err
-
-        license_server = self.get_option("license-server")
-
-        log.debug("Stream URL: %s", url)
-        log.debug("License server: %s", license_server)
 
         psshs = self.get_option("pssh")
 
@@ -468,10 +486,7 @@ class Widevine(Plugin):
                     ) from err
 
                 try:
-                    response = self.session.http.post(
-                        license_server,
-                        data=challenge,
-                    )
+                    response = self.session.http.post(license_url, data=challenge, headers=dict(license_header or []))
                 except PluginError:
                     raise
                 except Exception as err:
