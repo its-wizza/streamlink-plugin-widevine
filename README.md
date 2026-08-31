@@ -29,7 +29,7 @@ Alternatively, [sideload](https://streamlink.github.io/cli/plugin-sideloading.ht
 The plugin accepts DASH (.mpd) and HLS (.m3u8) manifests prefixed with the 
 `widevine://` scheme.
 
-A license server must be provided. 
+A license server URL must be provided. 
 
 The plugin also requires a Widevine device.
 The device can either be specified explicitly with `--widevine-device` or
@@ -39,7 +39,7 @@ placed in Streamlink's default configuration directory.
 streamlink \
     --plugin-dir /path/to/streamlink-plugin-widevine \
     --widevine-device /path/to/device.wvd \
-    --widevine-license-server "https://license.example.com/..." \
+    --widevine-license-url "https://license.example.com/..." \
     "widevine://https://example.com/manifest.mpd" \
     best
 ```
@@ -48,14 +48,24 @@ streamlink \
 
 The plugin accepts the following parameters:
 
-### `license-server`
+### `license-url`
 
 Widevine license server URL.
 
 This parameter is required.
 
 ```sh
---widevine-license-server "https://license.example.com/..."
+--widevine-license-url "https://license.example.com/..."
+```
+
+### `license-header`
+
+A header to add to the license server HTTP request, in `Key=Value` format.
+
+Can be repeated to add multiple headers.
+
+```sh
+--widevine-license-header "Host=license.example.com"
 ```
 
 ### `device`
@@ -111,7 +121,7 @@ The generated `widevine.py` can then be tested with Streamlink:
 streamlink \
     --plugin-dir . \
     --loglevel debug \
-    --widevine-license-server "https://license.example.com/..." \
+    --widevine-license-url "https://license.example.com/..." \
     "widevine://https://example.com/manifest.mpd" \
     best
 ```
