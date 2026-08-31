@@ -341,9 +341,12 @@ def _extract_widevine_psshs_from_init_segment(data: bytes) -> list[str]:
     help="Path to the Widevine device (.wvd) file.",
 )
 @pluginargument(
-    "license-server",
+    "license-url",
     required=True,
-    help="Widevine license server URL.",
+    metavar="URL",
+    help="""
+        Widevine license server URL.
+    """,
 )
 @pluginargument(
     "license-header",
@@ -382,7 +385,7 @@ class Widevine(Plugin):
         params = parse_params(data.get("params"))
         manifest_type = data["type"].lower()
 
-        license_server = self.get_option("license-server")
+        license_url = self.get_option("license-url")
         license_header = self.get_option("license-header")
 
         try:
@@ -448,7 +451,7 @@ class Widevine(Plugin):
 
                 try:
                     response = self.session.http.post(
-                        license_server,
+                        license_url,
                         data=challenge,
                         headers=dict(license_header or [])
                     )
