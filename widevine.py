@@ -44,6 +44,7 @@ from streamlink.exceptions import PluginError
 from streamlink.logger import getLogger
 from streamlink.options import Options
 from streamlink.plugin import Plugin, pluginargument, pluginmatcher
+from streamlink.plugin.api import validate
 from streamlink.plugin.plugin import parse_params
 from streamlink.stream.dash import MPD, DASHStream
 from streamlink.stream.hls import M3U8, HLSStream
@@ -354,6 +355,39 @@ def _extract_widevine_psshs_from_init_segment(data: bytes) -> list[str]:
     return psshs
 
 
+def _get_json_path(path):
+    def _get(value):
+        for part in path:
+            if isinstance(value, dict):
+                try:
+                    value = value[part]
+                except KeyError as err:
+                    raise PluginError(
+                        f"JSON path key not found: {part!r}",
+                    ) from err
+
+            elif isinstance(value, list):
+                try:
+                    value = value[int(part)]
+                except ValueError as err:
+                    raise PluginError(
+                        f"Expected array index, got {part!r}",
+                    ) from err
+                except IndexError as err:
+                    raise PluginError(
+                        f"Array index out of range: {part}",
+                    ) from err
+
+            else:
+                raise PluginError(
+                    f"Cannot access {part!r} in {type(value).__name__}",
+                )
+
+        return value
+
+    return _get
+
+
 @pluginmatcher(
     re.compile(
         r"widevine://(?P<url>\S+\.(?P<type>mpd|m3u8)(?:\?\S*)?)(?:\s(?P<params>.+))?$",
@@ -371,7 +405,7 @@ def _extract_widevine_psshs_from_init_segment(data: bytes) -> list[str]:
 )
 @pluginargument(
     "device",
-    metavar="PATH",
+    metavar="FILEPATH",
     help="""
         Path to the Widevine device (.wvd) file.
     """,
@@ -395,6 +429,25 @@ def _extract_widevine_psshs_from_init_segment(data: bytes) -> list[str]:
         Can be repeated to add multiple headers.
     """,
 )
+@pluginargument(
+    "license-format",
+    metavar="{raw,json}",
+    choices=["raw", "json"],
+    default="raw",
+    help="""
+        License server response format.
+    """,
+)
+@pluginargument(
+    "license-path",
+    metavar="KEY[,KEY2,...]",
+    type="comma_list",
+    help="""
+        Comma-separated path to the license message in a JSON response.
+        Path components access object keys or array indexes depending on
+        the type of the current value.
+    """,
+)
 class Widevine(Plugin):
     def _get_device_path(self) -> Path:
         if device := self.get_option("device"):
@@ -413,6 +466,32 @@ class Widevine(Plugin):
             "set the STREAMLINK_WIDEVINE_DEVICE environment variable, "
             f"or place device.wvd in the Streamlink config directory ({CONFIG_DIR}).",
         )
+
+    def _get_license_message(self, response):
+        license_format = self.get_option("license-format")
+
+        if license_format == "raw":
+            schema = validate.Schema(bytes)
+
+        elif license_format == "json":
+            license_path = self.get_option("license-path")
+
+            if not license_path:
+                raise PluginError(
+                    "The license-path option is required for JSON license responses",
+                )
+
+            schema = validate.Schema(
+                validate.parse_json(),
+                validate.transform(_get_json_path(license_path)),
+            )
+
+        else:
+            raise PluginError(
+                f"Unsupported license response format: {license_format}",
+            )
+
+        return schema.validate(response.content)
 
     def _get_streams(self):
         data = self.match.groupdict()
@@ -486,7 +565,11 @@ class Widevine(Plugin):
                     ) from err
 
                 try:
-                    response = self.session.http.post(license_url, data=challenge, headers=dict(license_header or []))
+                    response = self.session.http.post(
+                        license_url,
+                        data=challenge,
+                        headers=dict(license_header or []),
+                    )
                 except PluginError:
                     raise
                 except Exception as err:
@@ -495,10 +578,14 @@ class Widevine(Plugin):
                     ) from err
 
                 try:
+                    license_message = self._get_license_message(response)
+
                     cdm.parse_license(
                         session_id,
-                        response.content,
+                        license_message,
                     )
+                except PluginError:
+                    raise
                 except Exception as err:
                     raise PluginError(
                         f"Failed to parse Widevine license response: {err}",
