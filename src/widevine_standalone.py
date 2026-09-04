@@ -440,7 +440,7 @@ class Widevine(Plugin):
     def _get_license_message(self, response):
         license_format = self.get_option("license-format")
 
-        if license_format == "raw":
+        if license_format is None or license_format == "raw":
             schema = validate.Schema(bytes)
 
         elif license_format == "json":
@@ -472,6 +472,9 @@ class Widevine(Plugin):
 
         license_url = self.get_option("license-url")
         license_header = self.get_option("license-header")
+
+        if not license_url:
+            raise PluginError("The license-url option is required")
 
         try:
             device = Device.load(self._get_device_path())
