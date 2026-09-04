@@ -14,8 +14,8 @@ plugins.
 - [Streamlink](https://streamlink.github.io/)
 - A Widevine device (`.wvd`) provision
 - Additional third-party Streamlink plugins:
-  - [dashdrm.py](https://github.com/titus-au/streamlink-plugin-dashdrm)
-  - [hlsdrm.py](https://github.com/titus-au/streamlink-plugin-hlsdrm)
+  - [dashdrm.py](https://github.com/its-wizza/streamlink-plugin-dashdrm/tree/local-combined)
+  - [hlsdrm.py](https://github.com/its-wizza/streamlink-plugin-hlsdrm/tree/support-kid-matching)
 
 ## Installation
 
