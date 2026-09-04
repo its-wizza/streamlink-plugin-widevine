@@ -200,10 +200,7 @@ def _comment_module_docstring(source: str) -> str:
     if docstring.endswith(('"""', "'''")):
         docstring = docstring[:-3]
 
-    commented = [
-        f"# {line}" if line else "#"
-        for line in docstring.splitlines()
-    ]
+    commented = [f"# {line}" if line else "#" for line in docstring.splitlines()]
 
     lines[node.lineno - 1 : node.end_lineno] = [
         "\n".join(commented) + "\n",
