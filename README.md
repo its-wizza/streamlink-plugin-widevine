@@ -68,6 +68,37 @@ Can be repeated to add multiple headers.
 --widevine-license-header "Host=license.example.com"
 ```
 
+### `license-format`
+
+The format of the license server response.
+
+Supported values are:
+- `raw` (default)
+- `json`
+
+```sh
+--widevine-license-format json
+```
+
+### `license-path`
+
+Comma-separated path to the license message in a JSON response.
+
+For example, if the license server returns a JSON object like this:
+
+```json
+{
+    "license": {
+        "message": "BASE64_LICENSE"
+    }
+}
+```
+
+```shell
+--widevine-license-format json \
+--widevine-license-path "license,message"
+```
+
 ### `device`
 
 Path to the Widevine device (`.wvd`) file.
