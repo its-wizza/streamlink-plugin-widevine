@@ -446,6 +446,8 @@ def _get_json_path(path):
         Comma-separated path to the license message in a JSON response.
         Path components access object keys or array indexes depending on
         the type of the current value.
+        
+        Required if license-format is set to "json".
     """,
 )
 class Widevine(Plugin):
