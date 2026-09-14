@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from streamlink.compat import is_darwin, is_win32
 from streamlink.exceptions import PluginError
@@ -36,11 +37,8 @@ else:
     CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser() / "streamlink"
 
 
-WIDEVINE_SCHEME_ID = "urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
+WIDEVINE_SYSTEM_ID = UUID("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
 CENC_NS = "urn:mpeg:cenc:2013"
-WIDEVINE_SYSTEM_ID_BYTES = bytes.fromhex(
-    "edef8ba979d64acea3c827dcd51d21ed",
-)
 
 MANIFEST_TO_PLUGIN = {
     "mpd": "dashdrm",
@@ -136,7 +134,7 @@ def _extract_widevine_psshs_from_mpd(mpd: MPD) -> list[str]:
 
     def extract(content_protections):
         for cp in content_protections:
-            if cp.schemeIdUri != WIDEVINE_SCHEME_ID:
+            if cp.schemeIdUri.lower() != f"urn:uuid:{WIDEVINE_SYSTEM_ID}".lower():
                 continue
 
             pssh = cp.node.findtext(f"{{{CENC_NS}}}pssh")
@@ -165,7 +163,10 @@ def _iter_widevine_dash_representations(mpd: MPD) -> Iterator[Representation]:
     for period in mpd.periods:
         for adaptation_set in period.adaptationSets:
             for representation in adaptation_set.representations:
-                if any(cp.schemeIdUri == WIDEVINE_SCHEME_ID for cp in representation.contentProtections):
+                if any(
+                    cp.schemeIdUri.lower() == f"urn:uuid:{WIDEVINE_SYSTEM_ID}".lower()
+                    for cp in representation.contentProtections
+                ):
                     yield representation
 
 
@@ -312,7 +313,7 @@ def _extract_widevine_psshs_from_hls_playlist(playlist: M3U8DRM) -> list[str]:
             continue
 
         if key.key_format:
-            if key.key_format.lower() != WIDEVINE_SCHEME_ID.lower():
+            if key.key_format.lower() != f"urn:uuid:{WIDEVINE_SYSTEM_ID}".lower():
                 continue
 
         parsed = urlsplit(key.uri)
@@ -375,7 +376,7 @@ def _extract_widevine_psshs_from_init_segment(data: bytes) -> list[str]:
             if body + 20 <= offset + size:
                 system_id = data[body + 4 : body + 20]
 
-                if system_id == WIDEVINE_SYSTEM_ID_BYTES:
+                if system_id == WIDEVINE_SYSTEM_ID.bytes:
                     pssh = base64.b64encode(
                         data[offset : offset + size],
                     ).decode("ascii")
@@ -480,7 +481,7 @@ def _get_json_path(path):
         Comma-separated path to the license message in a JSON response.
         Path components access object keys or array indexes depending on
         the type of the current value.
-        
+
         Required if license-format is set to "json".
     """,
 )
