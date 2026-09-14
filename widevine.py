@@ -27,7 +27,7 @@ import time
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, Union
 from urllib.parse import urlsplit
 from uuid import UUID
 from xml.etree.ElementTree import XML
@@ -47,7 +47,7 @@ from streamlink.plugin import Plugin, pluginargument, pluginmatcher
 from streamlink.plugin.api import validate
 from streamlink.plugin.plugin import parse_params
 from streamlink.stream.dash import MPD, DASHStream
-from streamlink.stream.hls import M3U8, HLSStream
+from streamlink.stream.hls import M3U8, HLSPlaylist, HLSSegment, HLSStream, Key, M3U8Parser, parse_tag
 from streamlink.utils.parse import parse_xml
 
 
@@ -78,6 +78,40 @@ MANIFEST_TO_PLUGIN = {
 }
 
 log = getLogger(__name__)
+
+
+class M3U8DRM(M3U8):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session_keys: list[Key] = []
+
+
+class M3U8ParserDRM(M3U8Parser):
+    __m3u8__: ClassVar[type[M3U8[HLSSegment, HLSPlaylist]]] = M3U8DRM
+
+    @parse_tag("EXT-X-SESSION-KEY")
+    def parse_tag_ext_x_session_key(self, value: str) -> None:
+        attr = self.parse_attributes(value)
+        method = attr.get("METHOD")
+        uri = attr.get("URI")
+
+        if not method:
+            return
+
+        self.m3u8.session_keys.append(
+            Key(
+                method=method,
+                uri=self.uri(uri) if uri else None,
+                iv=self.parse_hex(attr.get("IV")),
+                key_format=attr.get("KEYFORMAT"),
+                key_format_versions=attr.get("KEYFORMATVERSIONS"),
+            ),
+        )
+
+
+class HLSStreamDRM(HLSStream):
+    __shortname__ = "hlsdrm"
+    __parser__: ClassVar[type[M3U8Parser[M3U8[HLSSegment, HLSPlaylist], HLSSegment, HLSPlaylist]]] = M3U8ParserDRM
 
 
 def _resolve_psshs(session: Streamlink, manifest_type: str, url: str, **kwargs) -> list[str]:
@@ -198,46 +232,64 @@ def _resolve_hls_psshs(session: Streamlink, url: str, **kwargs) -> list[str]:
     return _resolve_hls_playlist_psshs(session, playlist, **kwargs)
 
 
-def _parse_hls_playlist(session: Streamlink, url: str, **kwargs) -> M3U8:
+def _parse_hls_playlist(session: Streamlink, url: str, **kwargs) -> M3U8DRM:
     request_args = session.http.valid_request_args(**kwargs)
     res = session.http.get(url, **request_args)
-    parser = HLSStream.__parser__(url)
+    parser = HLSStreamDRM.__parser__(url)
     return parser.parse(res.text)
 
 
-def _resolve_hls_master_psshs(session: Streamlink, playlist: M3U8, **kwargs) -> list[str]:
+def _resolve_hls_master_psshs(
+    session: Streamlink,
+    playlist: M3U8DRM,
+    **kwargs,
+) -> list[str]:
     log.debug("Inspecting HLS master playlist")
 
-    psshs = []
-    seen = set()
+    # EXT-X-SESSION-KEY
+    psshs = _extract_widevine_psshs_from_hls_playlist(playlist)
+    if psshs:
+        log.debug(
+            "Found Widevine PSSH in HLS master playlist",
+        )
+        return psshs
 
+    # Inspect variants
     for variant in playlist.playlists:
         log.debug("Inspecting variant playlist: %s", variant.uri)
 
         media = _parse_hls_playlist(session, variant.uri, **kwargs)
 
         try:
-            variant_psshs = _resolve_hls_playlist_psshs(session, media, **kwargs)
-            psshs.extend(pssh for pssh in variant_psshs if pssh not in seen)
-            seen.update(variant_psshs)
+            return _resolve_hls_playlist_psshs(
+                session,
+                media,
+                **kwargs,
+            )
         except PluginError:
             continue
 
-    if not psshs:
-        raise PluginError("Unable to resolve a Widevine PSSH from HLS master playlist")
+    raise PluginError(
+        "Unable to resolve a Widevine PSSH from HLS master playlist",
+    )
 
-    return psshs
 
-
-def _resolve_hls_playlist_psshs(session: Streamlink, playlist: M3U8, **kwargs) -> list[str]:
+def _resolve_hls_playlist_psshs(
+    session: Streamlink,
+    playlist: M3U8DRM,
+    **kwargs,
+) -> list[str]:
+    # EXT-X-KEY
     psshs = _extract_widevine_psshs_from_hls_playlist(playlist)
     if psshs:
         return psshs
 
-    log.debug("No PSSH found in HLS playlist; inspecting EXT-X-MAP")
+    # EXT-X-MAP / initialization segment
+    log.debug(
+        "No PSSH found in HLS playlist; inspecting EXT-X-MAP",
+    )
 
     seen_maps = set()
-    seen_psshs = set()
 
     for segment in playlist.segments:
         if not segment.map:
@@ -248,9 +300,13 @@ def _resolve_hls_playlist_psshs(session: Streamlink, playlist: M3U8, **kwargs) -
 
         seen_maps.add(segment.map.uri)
 
-        log.debug("Inspecting HLS initialisation segment: %s", segment.map.uri)
+        log.debug(
+            "Inspecting HLS initialisation segment: %s",
+            segment.map.uri,
+        )
 
         headers = {}
+
         if segment.map.byterange:
             start = segment.map.byterange.offset or 0
             end = start + segment.map.byterange.range - 1
@@ -262,23 +318,26 @@ def _resolve_hls_playlist_psshs(session: Streamlink, playlist: M3U8, **kwargs) -
             **kwargs,
         ).content
 
-        for pssh in _extract_widevine_psshs_from_init_segment(data):
-            if pssh not in seen_psshs:
-                seen_psshs.add(pssh)
-                psshs.append(pssh)
+        psshs = _extract_widevine_psshs_from_init_segment(data)
 
-    if not psshs:
-        raise PluginError("Unable to resolve a Widevine PSSH from HLS playlist")
+        if psshs:
+            return psshs
 
-    return psshs
+    raise PluginError(
+        "Unable to resolve a Widevine PSSH from HLS playlist",
+    )
 
 
-def _extract_widevine_psshs_from_hls_playlist(playlist: M3U8) -> list[str]:
+def _extract_widevine_psshs_from_hls_playlist(playlist: M3U8DRM) -> list[str]:
     psshs = []
     seen = set()
 
-    for segment in playlist.segments:
-        key = segment.key
+    keys = [
+        *playlist.session_keys,
+        *(segment.key for segment in playlist.segments if segment.key),
+    ]
+
+    for key in keys:
         if not key or not key.uri:
             continue
 
@@ -324,15 +383,20 @@ def _extract_widevine_psshs_from_init_segment(data: bytes) -> list[str]:
         typ = data[offset + 4 : offset + 8]
 
         header = 8
+
         if size == 0:
             size = len(data) - offset
         elif size == 1:
             if offset + 16 > len(data):
                 break
+
             size = int.from_bytes(data[offset + 8 : offset + 16], "big")
             header = 16
 
         if size < header:
+            break
+
+        if offset + size > len(data):
             break
 
         if typ == b"pssh":
