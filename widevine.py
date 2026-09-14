@@ -47,7 +47,7 @@ from streamlink.plugin import Plugin, pluginargument, pluginmatcher
 from streamlink.plugin.api import validate
 from streamlink.plugin.plugin import parse_params
 from streamlink.stream.dash import MPD, DASHStream
-from streamlink.stream.hls import M3U8, HLSPlaylist, HLSSegment, HLSStream, Key, M3U8Parser, parse_tag
+from streamlink.stream.hls import M3U8, HLSPlaylist, HLSSegment, HLSStream, Key as HLSKey, M3U8Parser, parse_tag
 from streamlink.utils.parse import parse_xml
 
 
@@ -83,7 +83,7 @@ log = getLogger(__name__)
 class M3U8DRM(M3U8):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session_keys: list[Key] = []
+        self.session_keys: list[HLSKey] = []
 
 
 class M3U8ParserDRM(M3U8Parser):
@@ -99,7 +99,7 @@ class M3U8ParserDRM(M3U8Parser):
             return
 
         self.m3u8.session_keys.append(
-            Key(
+            HLSKey(
                 method=method,
                 uri=self.uri(uri) if uri else None,
                 iv=self.parse_hex(attr.get("IV")),
